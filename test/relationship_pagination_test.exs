@@ -526,5 +526,89 @@ defmodule AshGraphql.RelationshipPaginationTest do
                }
              } = result
     end
+
+    test "on return values for update mutations that change the relationship" do
+      movie = Ash.create!(AshGraphql.Test.Movie, %{title: "Title"})
+      actor1 = Ash.create!(AshGraphql.Test.Actor, %{name: "Actor 1"})
+      actor2 = Ash.create!(AshGraphql.Test.Actor, %{name: "Actor 2"})
+
+      document =
+        """
+        mutation AddMovieActors($id: ID!, $input: AddMovieActorsInput!, $first: Int, $after: String) {
+          addMovieActors(id: $id, input: $input) {
+            result {
+              title
+              actors(first: $first, after: $after, sort: [{field: NAME}]) {
+                count
+                edges {
+                  cursor
+                  node {
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+      variables = %{"id" => movie.id, "input" => %{"actorIds" => [actor1.id]}, "first" => 1}
+      resp = Absinthe.run(document, AshGraphql.Test.Schema, variables: variables)
+      assert {:ok, result} = resp
+      refute Map.has_key?(result, :errors)
+
+      assert %{
+               data: %{
+                 "addMovieActors" => %{
+                   "result" => %{
+                     "title" => "Title",
+                     "actors" => %{
+                       "count" => 1,
+                       "edges" => [
+                         %{
+                           "cursor" => cursor,
+                           "node" => %{
+                             "name" => "Actor 1"
+                           }
+                         }
+                       ]
+                     }
+                   }
+                 }
+               }
+             } = result
+
+      variables = %{
+        "id" => movie.id,
+        "input" => %{"actorIds" => [actor2.id]},
+        "first" => 3,
+        "after" => cursor
+      }
+
+      resp = Absinthe.run(document, AshGraphql.Test.Schema, variables: variables)
+
+      assert {:ok, result} = resp
+      refute Map.has_key?(result, :errors)
+
+      assert %{
+               data: %{
+                 "addMovieActors" => %{
+                   "result" => %{
+                     "title" => "Title",
+                     "actors" => %{
+                       "count" => 2,
+                       "edges" => [
+                         %{
+                           "node" => %{
+                             "name" => "Actor 2"
+                           }
+                         }
+                       ]
+                     }
+                   }
+                 }
+               }
+             } = result
+    end
   end
 end

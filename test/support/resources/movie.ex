@@ -19,6 +19,7 @@ defmodule AshGraphql.Test.Movie do
     mutations do
       create :create_movie, :create_with_actors
       update :update_movie, :update
+      update :add_movie_actors, :add_actors
       destroy :destroy_movie, :destroy
     end
   end
@@ -32,6 +33,17 @@ defmodule AshGraphql.Test.Movie do
         allow_nil? false
         constraints(min_length: 1)
       end
+
+      change(manage_relationship(:actor_ids, :actors, type: :append))
+    end
+
+    update :add_actors do
+      argument :actor_ids, {:array, :uuid} do
+        allow_nil? false
+        constraints(min_length: 1)
+      end
+
+      require_atomic?(false)
 
       change(manage_relationship(:actor_ids, :actors, type: :append))
     end
